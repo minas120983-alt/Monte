@@ -1,11 +1,12 @@
 """
-Monte Carlo Stock Price Simulator — Streamlit App
+Monte Carlo Stock Price Simulator
+Streamlit app — UI rendered via components.html for full design control
 """
 
 import streamlit as st
 import yfinance as yf
 import numpy as np
-import plotly.graph_objects as go
+import json
 
 st.set_page_config(
     page_title="Monte Carlo Simulator",
@@ -14,527 +15,710 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Hide all Streamlit chrome
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap');
-
-html, body, [class*="css"], .stApp { background-color: #08090c; }
-#MainMenu, footer, header { visibility: hidden; }
-section[data-testid="stSidebar"] { display: none; }
-
-* { font-family: 'DM Mono', monospace !important; }
-
-/* ── Layout wrapper ── */
-.block-container {
-    max-width: 1160px !important;
-    padding: 3rem 2rem 4rem !important;
-}
-
-/* ── Dividers ── */
-hr {
-    border: none !important;
-    border-top: 1px solid rgba(255,255,255,0.06) !important;
-    margin: 2rem 0 !important;
-}
-
-/* ── Text ── */
-p, li, label, div { color: #c9cdd8; }
-h1, h2, h3, h4 { color: #e8eaf0 !important; font-weight: 400 !important; }
-
-/* ── Inputs ── */
-input[type="text"],
-div[data-baseweb="input"] input {
-    background: #0f1117 !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 8px !important;
-    color: #e8eaf0 !important;
-    font-size: 15px !important;
-    letter-spacing: 0.08em !important;
-    font-weight: 500 !important;
-    height: 48px !important;
-    padding: 0 1rem !important;
-    transition: border-color 0.2s !important;
-}
-input[type="text"]:focus,
-div[data-baseweb="input"]:focus-within input {
-    border-color: rgba(255,255,255,0.35) !important;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-div[data-baseweb="input"] {
-    background: transparent !important;
-    border: none !important;
-}
-
-/* ── Buttons ── */
-.stButton > button {
-    background: #e8eaf0 !important;
-    color: #08090c !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    letter-spacing: 0.06em !important;
-    height: 48px !important;
-    padding: 0 1.5rem !important;
-    transition: opacity 0.15s !important;
-    width: 100% !important;
-}
-.stButton > button:hover { opacity: 0.82 !important; }
-.stButton > button:active { opacity: 0.65 !important; }
-
-/* ── Sliders ── */
-[data-testid="stSlider"] {
-    padding: 0 !important;
-}
-[data-testid="stSlider"] > label {
-    font-size: 11px !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    color: #4a5066 !important;
-    margin-bottom: 6px !important;
-}
-div[data-testid="stSlider"] [data-testid="stTickBar"] { display: none !important; }
-div[data-testid="stSlider"] > div > div > div[role="slider"] {
-    background: #e8eaf0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    width: 14px !important;
-    height: 14px !important;
-}
-div[data-testid="stSlider"] > div > div > div:first-child {
-    background: rgba(255,255,255,0.08) !important;
-    height: 2px !important;
-}
-div[data-testid="stSlider"] > div > div > div:nth-child(2) {
-    background: #e8eaf0 !important;
-    height: 2px !important;
-}
-
-/* ── Selectbox ── */
-div[data-baseweb="select"] > div {
-    background: #0f1117 !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 8px !important;
-    color: #e8eaf0 !important;
-    min-height: 48px !important;
-}
-div[data-baseweb="select"] > div:focus-within {
-    border-color: rgba(255,255,255,0.35) !important;
-    box-shadow: none !important;
-}
-div[data-baseweb="popover"] {
-    background: #0f1117 !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 8px !important;
-}
-li[role="option"] { color: #c9cdd8 !important; }
-li[role="option"]:hover { background: rgba(255,255,255,0.05) !important; }
-
-/* ── Metrics ── */
-[data-testid="stMetric"] {
-    background: #0f1117;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
-    padding: 1.1rem 1.25rem 1rem;
-}
-[data-testid="stMetricLabel"] > div {
-    font-size: 10px !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    color: #4a5066 !important;
-    font-weight: 400 !important;
-}
-[data-testid="stMetricValue"] {
-    font-family: 'Fraunces', Georgia, serif !important;
-    font-size: 1.6rem !important;
-    font-weight: 200 !important;
-    color: #e8eaf0 !important;
-    line-height: 1.2 !important;
-}
-[data-testid="stMetricDelta"] {
-    font-size: 11px !important;
-    color: #4a5066 !important;
-}
-[data-testid="stMetricDelta"] svg { display: none !important; }
-
-/* ── Expander ── */
-details {
-    background: #0f1117 !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 10px !important;
-    padding: 0.25rem 0 !important;
-}
-summary {
-    font-size: 11px !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    color: #4a5066 !important;
-    padding: 0.85rem 1.25rem !important;
-    cursor: pointer !important;
-}
-summary:hover { color: #c9cdd8 !important; }
-
-/* ── Label text ── */
-.stTextInput label, .stSelectbox label, .stSlider label {
-    font-size: 10px !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    color: #4a5066 !important;
-    margin-bottom: 6px !important;
-}
-
-/* ── Spinner ── */
-[data-testid="stSpinner"] { color: #4a5066 !important; }
-
-/* ── Columns gap ── */
-[data-testid="column"] { padding: 0 0.4rem !important; }
+#MainMenu, footer, header, [data-testid="stToolbar"],
+[data-testid="stDecoration"], [data-testid="stSidebar"],
+section[data-testid="stSidebar"] { display: none !important; }
+.block-container { padding: 0 !important; max-width: 100% !important; }
+.stApp { background: #07080b !important; }
+iframe { border: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# ── Data fetching ───────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_data(ticker: str):
-    data = yf.download(ticker, period="5y", interval="1d", auto_adjust=True, progress=False)
+    data = yf.download(ticker, period="5y", interval="1d",
+                       auto_adjust=True, progress=False)
     if data.empty:
-        return None, f"No data found for '{ticker}'."
-    closes = data["Close"].dropna().squeeze()
+        return None, f"No data found for '{ticker}'. Check the symbol and try again."
+    closes  = data["Close"].dropna().squeeze()
     returns = closes.pct_change().dropna()
-    def scalar(x):
-        return float(x.iloc[0]) if hasattr(x, "iloc") else float(x)
-    mu    = scalar(returns.mean())
-    sigma = scalar(returns.std())
-    last  = scalar(closes.iloc[-1])
+    def s(x): return float(x.iloc[0]) if hasattr(x, "iloc") else float(x)
+    mu    = s(returns.mean())
+    sigma = s(returns.std())
+    last  = s(closes.iloc[-1])
     info  = yf.Ticker(ticker).info
     name  = info.get("longName") or info.get("shortName") or ticker
-    currency = info.get("currency", "USD")
-    return {"ticker": ticker, "name": name, "currency": currency,
-            "last_price": round(last, 2), "mu": mu, "sigma": sigma}, None
+    hist  = [round(float(v), 2) for v in closes.iloc[-252:].tolist()]
+    return {
+        "ticker": ticker, "name": name,
+        "last_price": round(last, 2), "mu": mu, "sigma": sigma,
+        "history": hist,
+    }, None
 
 
-def run_simulation(last_price, mu, sigma, years, n_sims, vol_mult):
-    steps     = int(years * 252)
-    sigma_adj = sigma * vol_mult
-    drift     = mu - 0.5 * sigma_adj ** 2
-    rng       = np.random.default_rng()
-    Z         = rng.standard_normal((n_sims, steps))
-    paths     = last_price * np.exp(np.cumsum(drift + sigma_adj * Z, axis=1))
-    paths     = np.hstack([np.full((n_sims, 1), last_price), paths])
-    idx       = np.linspace(0, steps, min(80, steps + 1), dtype=int)
-    sampled   = paths[:, idx]
-    pcts      = {p: np.percentile(sampled, p, axis=0) for p in [5, 25, 50, 75, 95]}
-    labels    = []
+def run_sim(last, mu, sigma, years, n, vol):
+    steps = int(years * 252)
+    sa    = sigma * vol
+    drift = mu - 0.5 * sa ** 2
+    rng   = np.random.default_rng()
+    Z     = rng.standard_normal((n, steps))
+    paths = last * np.exp(np.cumsum(drift + sa * Z, axis=1))
+    paths = np.hstack([np.full((n, 1), last), paths])
+    idx   = np.linspace(0, steps, min(90, steps + 1), dtype=int)
+    samp  = paths[:, idx]
+    pcts  = {p: np.percentile(samp, p, axis=0).tolist()
+             for p in [5, 25, 50, 75, 95]}
+    final = paths[:, -1]
+    labels = []
     for i in idx:
         mo = round(i / 252 * 12)
-        if mo == 0:    labels.append("Now")
-        elif mo < 12:  labels.append(f"{mo}m")
+        if mo == 0:   labels.append("Now")
+        elif mo < 12: labels.append(f"{mo}m")
         else:
-            yr = mo // 12; rem = mo % 12
-            labels.append(f"{yr}y" + (f" {rem}m" if rem else ""))
-    return {"labels": labels, "pcts": pcts, "paths": sampled[:120], "final": paths[:, -1]}
+            yr = mo // 12; rm = mo % 12
+            labels.append(f"{yr}y" + (f"{rm}m" if rm else ""))
+    return {
+        "labels": labels,
+        "pcts":   pcts,
+        "paths":  samp[:100].tolist(),
+        "p5":  round(float(np.percentile(final, 5)),  2),
+        "p25": round(float(np.percentile(final, 25)), 2),
+        "p50": round(float(np.percentile(final, 50)), 2),
+        "p75": round(float(np.percentile(final, 75)), 2),
+        "p95": round(float(np.percentile(final, 95)), 2),
+        "prob_gain":   round(float(np.mean(final > last) * 100),       1),
+        "prob_20up":   round(float(np.mean(final > last * 1.2) * 100), 1),
+        "prob_loss20": round(float(np.mean(final < last * 0.8) * 100), 1),
+    }
 
 
-def fmt_price(v): return f"${v:,.2f}"
-def fmt_k(v):     return f"${v:,.0f}"
-def pct_chg(new, old):
-    c = (new - old) / old * 100
-    return f"+{c:.1f}%" if c >= 0 else f"{c:.1f}%"
+# ── State ───────────────────────────────────────────────────────────────────
+for k, v in [("asset", None), ("results", None), ("loaded", ""),
+             ("years", 1), ("nsims", 600), ("vol", 1.0)]:
+    if k not in st.session_state: st.session_state[k] = v
 
+# Handle query params from the UI iframe
+params = st.query_params
+action = params.get("action", "")
 
-# ── Session state ───────────────────────────────────────────────────────────────
-for k, v in [("asset", None), ("results", None), ("ticker_loaded", "")]:
-    if k not in st.session_state:
-        st.session_state[k] = v
+if action == "fetch":
+    t = params.get("ticker", "SPY").upper().strip()
+    if t != st.session_state.loaded:
+        data, err = fetch_data(t)
+        if not err:
+            st.session_state.asset   = data
+            st.session_state.loaded  = t
+            st.session_state.results = None
 
+if action == "simulate" or (st.session_state.asset and st.session_state.results is None):
+    try:
+        st.session_state.years = int(params.get("years",  st.session_state.years))
+        st.session_state.nsims = int(params.get("nsims",  st.session_state.nsims))
+        st.session_state.vol   = float(params.get("vol",  st.session_state.vol))
+    except: pass
+    if st.session_state.asset:
+        a = st.session_state.asset
+        st.session_state.results = run_sim(
+            a["last_price"], a["mu"], a["sigma"],
+            st.session_state.years, st.session_state.nsims, st.session_state.vol)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# HEADER
-# ══════════════════════════════════════════════════════════════════════════════
-st.markdown("""
-<div style="margin-bottom: 2.5rem;">
-  <div style="font-size: 10px; letter-spacing: 0.18em; color: #4a5066;
-              text-transform: uppercase; margin-bottom: 1rem;">
-    Monte Carlo Price Simulator
-  </div>
-  <div style="font-family: 'Fraunces', Georgia, serif; font-size: clamp(2rem, 4vw, 3rem);
-              font-weight: 200; color: #e8eaf0; line-height: 1.1; font-style: italic;">
-    Where could this stock end up?
-  </div>
-  <div style="margin-top: 0.75rem; font-size: 12px; color: #4a5066;
-              max-width: 520px; line-height: 1.8;">
-    Enter any ticker. We pull 5 years of price history, model thousands of possible futures
-    using Geometric Brownian Motion, and show you the realistic range of outcomes.
-  </div>
-</div>
-""", unsafe_allow_html=True)
+# Auto-load SPY on first visit
+if not st.session_state.loaded:
+    data, _ = fetch_data("SPY")
+    if data:
+        st.session_state.asset   = data
+        st.session_state.loaded  = "SPY"
+        st.session_state.results = run_sim(
+            data["last_price"], data["mu"], data["sigma"], 1, 600, 1.0)
 
-st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin-bottom:2rem;"></div>', unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TICKER INPUT ROW
-# ══════════════════════════════════════════════════════════════════════════════
-c_input, c_btn, c_quick = st.columns([2, 1, 4])
-
-with c_input:
-    ticker_raw = st.text_input("Ticker symbol", value="SPY", label_visibility="collapsed",
-                                placeholder="Ticker — e.g. AAPL, TSLA, BTC-USD")
-
-with c_btn:
-    fetch_clicked = st.button("Load data")
-
-with c_quick:
-    st.markdown("""
-    <div style="display:flex; align-items:center; gap:10px; height:48px; flex-wrap:wrap;">
-      <span style="font-size:10px;letter-spacing:.1em;color:#4a5066;text-transform:uppercase;">Quick load</span>
-      <span style="font-size:11px;color:#4a5066;">SPY · AAPL · TSLA · MSFT · NVDA · BTC-USD · GLD</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-ticker = ticker_raw.upper().strip()
-
-# Auto-load on first visit
-if not st.session_state.ticker_loaded:
-    fetch_clicked = True
-
-if fetch_clicked and ticker:
-    if ticker != st.session_state.ticker_loaded:
-        with st.spinner(f"Fetching {ticker}…"):
-            data, err = fetch_data(ticker)
-        if err:
-            st.markdown(f'<div style="font-size:12px;color:#c0392b;padding:.5rem 0;">{err}</div>',
-                        unsafe_allow_html=True)
-        else:
-            st.session_state.asset         = data
-            st.session_state.ticker_loaded = ticker
-            st.session_state.results       = None
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ASSET STRIP
-# ══════════════════════════════════════════════════════════════════════════════
-asset = st.session_state.asset
-
-if asset:
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1.5rem 0;"></div>',
-                unsafe_allow_html=True)
-
-    ann_ret = ((1 + asset["mu"]) ** 252 - 1) * 100
-    ann_vol = asset["sigma"] * (252 ** 0.5) * 100
-
-    a1, a2, a3, a4, a5 = st.columns([2.5, 1.2, 1.2, 1.2, 1.2])
-    with a1:
-        st.markdown(f"""
-        <div style="padding: 1.1rem 0 1rem;">
-          <div style="font-family:'Fraunces',serif; font-size:1.5rem; font-weight:200;
-                      color:#e8eaf0; letter-spacing:.03em;">{asset['ticker']}</div>
-          <div style="font-size:11px; color:#4a5066; margin-top:4px;
-                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-                      max-width:260px;">{asset['name']}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with a2:
-        st.metric("Price", fmt_price(asset["last_price"]))
-    with a3:
-        st.metric("Ann. return", f"{ann_ret:+.1f}%")
-    with a4:
-        st.metric("Ann. volatility", f"{ann_vol:.1f}%")
-    with a5:
-        st.metric("Daily drift (μ)", f"{asset['mu']*100:.3f}%")
-
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1.5rem 0 2rem;"></div>',
-                unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CONTROLS ROW
-# ══════════════════════════════════════════════════════════════════════════════
-if asset:
-    s1, s2, s3, s4 = st.columns([1.5, 1.5, 1.5, 1])
-
-    with s1:
-        years = st.slider("Time horizon (years)", 1, 10, 1, 1)
-
-    with s2:
-        n_sims = st.slider("Simulations", 100, 3000, 600, 100)
-
-    with s3:
-        vol_label = st.selectbox("Volatility scenario",
-            ["Normal (1×)", "Elevated (1.5×)", "High (2×)", "Crisis (2.5×)"])
-        vol_map  = {"Normal (1×)": 1.0, "Elevated (1.5×)": 1.5,
-                    "High (2×)": 2.0, "Crisis (2.5×)": 2.5}
-        vol_mult = vol_map[vol_label]
-
-    with s4:
-        st.markdown('<div style="height:1.45rem;"></div>', unsafe_allow_html=True)
-        run_clicked = st.button("Run simulation")
-
-    if run_clicked or st.session_state.results is None:
-        with st.spinner("Simulating…"):
-            st.session_state.results = run_simulation(
-                asset["last_price"], asset["mu"], asset["sigma"],
-                years, n_sims, vol_mult)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# RESULTS
-# ══════════════════════════════════════════════════════════════════════════════
+asset   = st.session_state.asset
 results = st.session_state.results
 
-if asset and results:
-    final = results["final"]
-    last  = asset["last_price"]
+# Prepare JSON for the frontend
+asset_json   = json.dumps(asset   or {})
+results_json = json.dumps(results or {})
+years_val    = st.session_state.years
+nsims_val    = st.session_state.nsims
+vol_val      = st.session_state.vol
 
-    p5  = float(np.percentile(final, 5))
-    p25 = float(np.percentile(final, 25))
-    p50 = float(np.percentile(final, 50))
-    p75 = float(np.percentile(final, 75))
-    p95 = float(np.percentile(final, 95))
+# ── Full HTML UI ─────────────────────────────────────────────────────────────
+HTML = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,300;1,9..144,200;1,9..144,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+:root{{
+  --bg:#07080b;
+  --surface:#0d0f14;
+  --surface2:#13161d;
+  --line:rgba(255,255,255,0.06);
+  --line2:rgba(255,255,255,0.11);
+  --text:#dde1ec;
+  --muted:#3d4258;
+  --muted2:#5a6070;
+  --accent:#e8eaf0;
+  --green:#4caf7d;
+  --red:#c0392b;
+  --yellow:#d4a843;
+}}
+html,body{{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;
+  font-size:14px;min-height:100vh;overflow-x:hidden;}}
 
-    prob_gain   = float(np.mean(final > last)       * 100)
-    prob_20up   = float(np.mean(final > last * 1.2) * 100)
-    prob_loss20 = float(np.mean(final < last * 0.8) * 100)
+.app{{max-width:1200px;margin:0 auto;padding:3.5rem 2.5rem 6rem;}}
 
-    # ── Outcome metrics ─────────────────────────────────────────────────────
-    st.markdown("""
-    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;
-                color:#4a5066;margin-bottom:1rem;">Projected price at end of horizon</div>
-    """, unsafe_allow_html=True)
+/* Header */
+.eyebrow{{font-size:10px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;
+  margin-bottom:1.2rem;}}
+.headline{{font-family:'Fraunces',Georgia,serif;font-size:clamp(2.2rem,4vw,3.4rem);
+  font-weight:200;font-style:italic;color:var(--accent);line-height:1.05;
+  margin-bottom:1rem;}}
+.subhead{{font-size:12px;color:var(--muted2);line-height:1.9;max-width:500px;
+  margin-bottom:2.8rem;}}
 
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("5th percentile",  fmt_k(p5),  pct_chg(p5,  last))
-    m2.metric("25th percentile", fmt_k(p25), pct_chg(p25, last))
-    m3.metric("Median",          fmt_k(p50), pct_chg(p50, last))
-    m4.metric("75th percentile", fmt_k(p75), pct_chg(p75, last))
-    m5.metric("95th percentile", fmt_k(p95), pct_chg(p95, last))
+/* Rule */
+.rule{{height:1px;background:var(--line);margin:2rem 0;}}
 
-    st.markdown('<div style="height:2rem;"></div>', unsafe_allow_html=True)
+/* Search */
+.search-row{{display:flex;gap:12px;align-items:center;margin-bottom:.8rem;}}
+.ticker-wrap{{position:relative;}}
+.ticker-input{{
+  background:var(--surface);
+  border:1px solid var(--line2);
+  border-radius:6px;
+  color:var(--accent);
+  font-family:'DM Mono',monospace;
+  font-size:16px;
+  font-weight:500;
+  letter-spacing:.1em;
+  height:50px;
+  width:200px;
+  padding:0 1rem;
+  outline:none;
+  text-transform:uppercase;
+  transition:border-color .2s;
+}}
+.ticker-input::placeholder{{color:var(--muted);text-transform:none;font-weight:300;
+  letter-spacing:.02em;font-size:13px;}}
+.ticker-input:focus{{border-color:rgba(255,255,255,.3);}}
+.load-btn{{
+  background:var(--accent);color:var(--bg);
+  border:none;border-radius:6px;
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:500;
+  letter-spacing:.08em;height:50px;padding:0 1.5rem;
+  cursor:pointer;white-space:nowrap;
+  transition:opacity .15s,transform .1s;
+}}
+.load-btn:hover{{opacity:.85;}}
+.load-btn:active{{transform:scale(.97);}}
+.quick{{font-size:10px;color:var(--muted);letter-spacing:.06em;}}
+.quick span{{cursor:pointer;transition:color .15s;}}
+.quick span:hover{{color:var(--text);}}
 
-    # ── Chart ────────────────────────────────────────────────────────────────
-    labels = results["labels"]
-    pcts   = results["pcts"]
-    paths  = results["paths"]
+/* Error */
+.error-msg{{font-size:12px;color:var(--red);padding:.4rem 0 .8rem;display:none;}}
 
-    fig = go.Figure()
+/* Asset strip */
+.asset-strip{{display:none;margin:2rem 0;}}
+.asset-strip.show{{display:grid;grid-template-columns:auto 1fr repeat(4,auto);
+  gap:0;align-items:center;}}
+.as-ticker{{
+  font-family:'Fraunces',serif;font-size:2rem;font-weight:200;
+  color:var(--accent);padding-right:2rem;margin-right:2rem;
+  border-right:1px solid var(--line);
+}}
+.as-name{{font-size:12px;color:var(--muted2);line-height:1.5;padding-right:2rem;}}
+.as-stat{{
+  border-left:1px solid var(--line);
+  padding:0 2rem;text-align:right;
+}}
+.as-stat:first-of-type{{border-left:none;}}
+.as-label{{font-size:9px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:.3rem;}}
+.as-val{{font-family:'Fraunces',serif;font-size:1.4rem;font-weight:200;color:var(--accent);}}
 
-    # IQR fill
-    fig.add_trace(go.Scatter(
-        x=labels + labels[::-1],
-        y=list(pcts[75]) + list(pcts[25])[::-1],
-        fill="toself",
-        fillcolor="rgba(255,255,255,0.03)",
-        line=dict(color="rgba(0,0,0,0)"),
-        showlegend=False, hoverinfo="skip",
-    ))
+/* Controls */
+.controls{{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:2rem;
+  align-items:end;margin:2rem 0;}}
+.ctrl-label{{font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:.6rem;display:flex;justify-content:space-between;}}
+.ctrl-val{{color:var(--muted2);font-size:11px;letter-spacing:.02em;}}
+input[type=range]{{
+  -webkit-appearance:none;width:100%;height:2px;
+  background:var(--line2);border-radius:1px;outline:none;cursor:pointer;
+}}
+input[type=range]::-webkit-slider-thumb{{
+  -webkit-appearance:none;width:14px;height:14px;
+  border-radius:50%;background:var(--accent);cursor:pointer;
+  transition:transform .1s;
+}}
+input[type=range]::-webkit-slider-thumb:hover{{transform:scale(1.25);}}
+select{{
+  background:var(--surface);border:1px solid var(--line2);border-radius:6px;
+  color:var(--text);font-family:'DM Mono',monospace;font-size:12px;
+  height:40px;padding:0 .75rem;outline:none;cursor:pointer;width:100%;
+  transition:border-color .2s;
+}}
+select:focus{{border-color:rgba(255,255,255,.3);}}
+.run-btn{{
+  background:transparent;border:1px solid var(--line2);border-radius:6px;
+  color:var(--text);font-family:'DM Mono',monospace;font-size:12px;
+  letter-spacing:.06em;height:40px;padding:0 1.5rem;
+  cursor:pointer;white-space:nowrap;
+  transition:border-color .2s,color .2s;
+}}
+.run-btn:hover{{border-color:rgba(255,255,255,.3);color:var(--accent);}}
+.run-btn:active{{opacity:.7;}}
 
-    # Individual paths
-    for path in paths:
-        fig.add_trace(go.Scatter(
-            x=labels, y=path, mode="lines",
-            line=dict(color="rgba(255,255,255,0.04)", width=1),
-            showlegend=False, hoverinfo="skip",
-        ))
+/* Metrics section */
+.section-label{{font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:1.2rem;}}
+.metrics-row{{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:8px;
+  overflow:hidden;margin-bottom:3rem;}}
+.metric{{background:var(--surface);padding:1.4rem 1.25rem 1.2rem;}}
+.metric:first-child{{border-radius:8px 0 0 8px;}}
+.metric:last-child{{border-radius:0 8px 8px 0;}}
+.m-label{{font-size:9px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:.5rem;}}
+.m-val{{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:200;
+  color:var(--accent);line-height:1;margin-bottom:.3rem;}}
+.m-delta{{font-size:10px;color:var(--muted2);}}
+.m-delta.pos{{color:var(--green);}}
+.m-delta.neg{{color:var(--red);}}
 
-    # Percentile lines
-    line_styles = [
-        (5,  "#c0392b", "Bear  —  5th pct",  "dot"),
-        (50, "#e8eaf0", "Base  —  median",   "solid"),
-        (95, "#27ae60", "Bull  —  95th pct", "dot"),
-    ]
-    for p, color, name, dash in line_styles:
-        fig.add_trace(go.Scatter(
-            x=labels, y=pcts[p], mode="lines", name=name,
-            line=dict(color=color, width=2, dash=dash),
-            hovertemplate=f"<b>{name}</b><br>%{{x}}: $%{{y:,.0f}}<extra></extra>",
-        ))
+/* Chart */
+.chart-wrap{{position:relative;height:380px;margin-bottom:.75rem;}}
+.chart-caption{{font-size:10px;color:var(--muted);letter-spacing:.06em;
+  margin-bottom:3rem;}}
+.chart-legend{{display:flex;gap:1.5rem;margin-bottom:1rem;}}
+.leg{{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted2);}}
+.leg-line{{width:18px;height:2px;border-radius:1px;}}
 
-    # Today reference
-    fig.add_hline(y=last, line_dash="dot",
-                  line_color="rgba(255,255,255,0.12)", line_width=1)
+/* Prob row */
+.prob-row{{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:8px;
+  overflow:hidden;margin-bottom:3rem;}}
+.prob-card{{background:var(--surface);padding:1.6rem 1.5rem;}}
+.prob-val{{font-family:'Fraunces',serif;font-size:2.2rem;font-weight:200;
+  color:var(--accent);line-height:1;margin-bottom:.5rem;}}
+.prob-val.green{{color:var(--green);}}
+.prob-val.red{{color:var(--red);}}
+.prob-label{{font-size:10px;color:var(--muted2);line-height:1.7;}}
 
-    fig.update_layout(
-        paper_bgcolor="#08090c",
-        plot_bgcolor="#08090c",
-        height=400,
-        margin=dict(l=0, r=0, t=12, b=0),
-        legend=dict(
-            orientation="h", x=0, y=1.06,
-            font=dict(color="#4a5066", size=11, family="DM Mono"),
-            bgcolor="rgba(0,0,0,0)",
-        ),
-        xaxis=dict(
-            gridcolor="rgba(255,255,255,0.04)",
-            tickfont=dict(color="#4a5066", size=10, family="DM Mono"),
-            showline=False, zeroline=False,
-        ),
-        yaxis=dict(
-            gridcolor="rgba(255,255,255,0.04)",
-            tickfont=dict(color="#4a5066", size=10, family="DM Mono"),
-            tickprefix="$", tickformat=",.0f",
-            showline=False, zeroline=False,
-        ),
-        hovermode="x unified",
-        hoverlabel=dict(
-            bgcolor="#0f1117",
-            bordercolor="rgba(255,255,255,0.1)",
-            font=dict(color="#e8eaf0", size=11, family="DM Mono"),
-        ),
-    )
+/* Methodology */
+.meth{{border-top:1px solid var(--line);padding-top:2rem;}}
+.meth-toggle{{font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;background:none;border:none;
+  font-family:'DM Mono',monospace;transition:color .15s;padding:0;}}
+.meth-toggle:hover{{color:var(--text);}}
+.meth-body{{display:none;margin-top:1.5rem;}}
+.meth-body.open{{display:grid;grid-template-columns:1fr 1fr;gap:2rem;}}
+.meth-block .meth-title{{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted2);margin-bottom:.6rem;}}
+.meth-block p{{font-size:11px;color:var(--muted2);line-height:1.8;}}
+.meth-table{{width:100%;border-collapse:collapse;margin-top:.5rem;}}
+.meth-table td{{font-size:11px;color:var(--muted2);padding:.35rem 0;
+  border-bottom:1px solid var(--line);line-height:1.6;}}
+.meth-table td:first-child{{color:var(--muted);padding-right:1.5rem;white-space:nowrap;}}
+.disclaimer{{font-size:10px;color:var(--muted);line-height:1.8;margin-top:1.5rem;
+  padding-top:1.5rem;border-top:1px solid var(--line);}}
 
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+/* Loading overlay */
+.loading{{display:none;position:fixed;inset:0;background:rgba(7,8,11,.85);
+  z-index:999;align-items:center;justify-content:center;}}
+.loading.show{{display:flex;}}
+.loading-text{{font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted2);animation:pulse 1.4s ease-in-out infinite;}}
+@keyframes pulse{{0%,100%{{opacity:.3}}50%{{opacity:1}}}}
 
-    # ── Sub-label ───────────────────────────────────────────────────────────
-    st.markdown(f"""
-    <div style="font-size:10px;color:#4a5066;letter-spacing:.06em;margin-top:-1rem;margin-bottom:2rem;">
-      {n_sims:,} simulations · {years} year{'s' if years > 1 else ''} ·
-      {vol_label} · model: Geometric Brownian Motion
+@media(max-width:900px){{
+  .controls{{grid-template-columns:1fr 1fr;}}
+  .asset-strip.show{{grid-template-columns:auto 1fr;row-gap:1rem;}}
+  .as-stat{{border-left:none;padding:0;text-align:left;}}
+  .metrics-row{{grid-template-columns:repeat(3,1fr);}}
+  .prob-row{{grid-template-columns:1fr 1fr;}}
+  .meth-body.open{{grid-template-columns:1fr;}}
+}}
+@media(max-width:600px){{
+  .app{{padding:2rem 1.25rem 4rem;}}
+  .controls{{grid-template-columns:1fr;}}
+  .metrics-row{{grid-template-columns:1fr 1fr;}}
+}}
+</style>
+</head>
+<body>
+<div class="loading" id="loading"><div class="loading-text">Simulating</div></div>
+<div class="app">
+
+  <div class="eyebrow">Monte Carlo Price Simulator</div>
+  <div class="headline">Where could this<br>stock end up?</div>
+  <div class="subhead">Enter any ticker. Five years of price history, thousands of simulated
+  futures, one clear picture of the range of outcomes.</div>
+
+  <div class="rule"></div>
+
+  <div class="search-row">
+    <div class="ticker-wrap">
+      <input class="ticker-input" id="ticker" type="text"
+             placeholder="AAPL, TSLA, BTC-USD…"
+             value="{st.session_state.loaded or 'SPY'}" maxlength="12" spellcheck="false">
     </div>
-    """, unsafe_allow_html=True)
+    <button class="load-btn" onclick="loadTicker()">Load data</button>
+    <div class="quick">
+      Quick:&nbsp;
+      <span onclick="setTicker('SPY')">SPY</span> &middot;
+      <span onclick="setTicker('AAPL')">AAPL</span> &middot;
+      <span onclick="setTicker('TSLA')">TSLA</span> &middot;
+      <span onclick="setTicker('MSFT')">MSFT</span> &middot;
+      <span onclick="setTicker('NVDA')">NVDA</span> &middot;
+      <span onclick="setTicker('BTC-USD')">BTC-USD</span>
+    </div>
+  </div>
+  <div class="error-msg" id="err"></div>
 
-    # ── Probability row ──────────────────────────────────────────────────────
-    st.markdown("""
-    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;
-                color:#4a5066;margin-bottom:1rem;">Probability breakdown</div>
-    """, unsafe_allow_html=True)
+  <!-- Asset strip -->
+  <div class="asset-strip" id="asset-strip"></div>
+  <div class="rule" id="rule1" style="display:none;"></div>
 
-    p1, p2, p3 = st.columns(3)
-    p1.metric("Probability of any gain",     f"{prob_gain:.1f}%")
-    p2.metric("Probability of +20% or more", f"{prob_20up:.1f}%")
-    p3.metric("Probability of losing 20%+",  f"{prob_loss20:.1f}%")
+  <!-- Controls -->
+  <div class="controls" id="controls" style="display:none;">
+    <div>
+      <div class="ctrl-label">Time horizon <span class="ctrl-val" id="lbl-years">1 year</span></div>
+      <input type="range" id="sl-years" min="1" max="10" step="1" value="{years_val}"
+             oninput="updLabel()">
+    </div>
+    <div>
+      <div class="ctrl-label">Simulations <span class="ctrl-val" id="lbl-sims">{nsims_val:,}</span></div>
+      <input type="range" id="sl-sims" min="100" max="3000" step="100" value="{nsims_val}"
+             oninput="updLabel()">
+    </div>
+    <div>
+      <div class="ctrl-label">Volatility scenario</div>
+      <select id="sel-vol">
+        <option value="1.0"  {'selected' if vol_val==1.0  else ''}>Normal (1&times;)</option>
+        <option value="1.5"  {'selected' if vol_val==1.5  else ''}>Elevated (1.5&times;)</option>
+        <option value="2.0"  {'selected' if vol_val==2.0  else ''}>High (2&times;)</option>
+        <option value="2.5"  {'selected' if vol_val==2.5  else ''}>Crisis (2.5&times;)</option>
+      </select>
+    </div>
+    <div>
+      <button class="run-btn" onclick="simulate()">Run simulation</button>
+    </div>
+  </div>
 
-    st.markdown('<div style="height:2rem;"></div>', unsafe_allow_html=True)
+  <!-- Results -->
+  <div id="results" style="display:none;">
+    <div class="section-label" id="horizon-label">Projected price — 1 year horizon</div>
+    <div class="metrics-row" id="metrics-row"></div>
 
-    # ── Methodology ─────────────────────────────────────────────────────────
-    with st.expander("Methodology"):
-        st.markdown(f"""
-**Model:** Geometric Brownian Motion (GBM)  
-**Data source:** Yahoo Finance via yfinance · 5-year daily closing prices  
-**Parameters for {asset['ticker']}:**
+    <div class="chart-legend">
+      <div class="leg"><div class="leg-line" style="background:var(--red);border-top:2px dashed var(--red);height:0;"></div>Bear &mdash; 5th pct</div>
+      <div class="leg"><div class="leg-line" style="background:var(--text);"></div>Base &mdash; median</div>
+      <div class="leg"><div class="leg-line" style="background:var(--green);border-top:2px dashed var(--green);height:0;"></div>Bull &mdash; 95th pct</div>
+      <div class="leg"><div class="leg-line" style="background:rgba(255,255,255,0.06);width:18px;height:10px;border-radius:2px;"></div>Simulated paths</div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Monte Carlo price simulation chart"></canvas></div>
+    <div class="chart-caption" id="chart-caption"></div>
 
-| Parameter | Value |
-|---|---|
-| Daily drift (μ) | {asset['mu']*100:.4f}% |
-| Daily volatility (σ) | {asset['sigma']*100:.4f}% |
-| Annualised return | {((1+asset['mu'])**252-1)*100:.2f}% |
-| Annualised volatility | {asset['sigma']*(252**0.5)*100:.2f}% |
-| Simulations run | {n_sims:,} |
-| Time horizon | {years} year{'s' if years > 1 else ''} ({years*252} trading days) |
-| Volatility multiplier | {vol_mult}× |
+    <div class="section-label">Probability at end of horizon</div>
+    <div class="prob-row" id="prob-row"></div>
 
-**Important:** GBM assumes log-normal returns and constant volatility — it does not capture fat tails,
-mean reversion, or regime changes. Results are for educational purposes only and do not constitute
-financial advice. Past volatility is not indicative of future results.
-        """)
-
-elif not asset:
-    st.markdown("""
-    <div style="padding: 5rem 0; text-align: center;">
-      <div style="font-family:'Fraunces',serif; font-size:1.2rem; font-weight:200;
-                  font-style:italic; color:#4a5066;">
-        Enter a ticker above to begin
+    <div class="meth">
+      <button class="meth-toggle" onclick="toggleMeth()">+ Methodology &amp; parameters</button>
+      <div class="meth-body" id="meth-body">
+        <div class="meth-block">
+          <div class="meth-title">How it works</div>
+          <p>We model daily price returns using Geometric Brownian Motion (GBM), the standard
+          framework for equity price simulation. Each simulation draws random daily shocks from a
+          normal distribution calibrated to the asset's historical drift and volatility.
+          Running hundreds of paths reveals the probability distribution of future prices.</p>
+          <p style="margin-top:.8rem;">GBM assumes log-normal returns and constant volatility.
+          It does not capture fat tails, mean reversion, or structural regime changes.
+          These results are for educational and illustrative purposes only.</p>
+        </div>
+        <div class="meth-block">
+          <div class="meth-title">Parameters</div>
+          <table class="meth-table" id="meth-table"></table>
+          <div class="disclaimer">
+            Data sourced from Yahoo Finance via yfinance. Past performance is not indicative
+            of future results. This tool does not constitute financial advice.
+          </div>
+        </div>
       </div>
     </div>
-    """, unsafe_allow_html=True)
+  </div>
+
+</div><!-- /app -->
+
+<script>
+const ASSET   = {asset_json};
+const RESULTS = {results_json};
+let chart     = null;
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+function init() {{
+  updLabel();
+  if (ASSET && ASSET.ticker) {{
+    renderAsset(ASSET);
+    if (RESULTS && RESULTS.labels) renderResults(RESULTS, ASSET);
+  }}
+}}
+
+// ── Ticker utils ─────────────────────────────────────────────────────────────
+function setTicker(t) {{
+  document.getElementById('ticker').value = t;
+  loadTicker();
+}}
+
+function loadTicker() {{
+  const t = document.getElementById('ticker').value.trim().toUpperCase();
+  if (!t) return;
+  showErr('');
+  setLoading(true);
+  const url = new URL(window.location.href);
+  url.searchParams.set('action', 'fetch');
+  url.searchParams.set('ticker', t);
+  window.location.href = url.toString();
+}}
+
+function simulate() {{
+  const years = document.getElementById('sl-years').value;
+  const nsims = document.getElementById('sl-sims').value;
+  const vol   = document.getElementById('sel-vol').value;
+  setLoading(true);
+  const url = new URL(window.location.href);
+  url.searchParams.set('action', 'simulate');
+  url.searchParams.set('years', years);
+  url.searchParams.set('nsims', nsims);
+  url.searchParams.set('vol', vol);
+  window.location.href = url.toString();
+}}
+
+// ── Labels ───────────────────────────────────────────────────────────────────
+function updLabel() {{
+  const y = +document.getElementById('sl-years').value;
+  const s = +document.getElementById('sl-sims').value;
+  document.getElementById('lbl-years').textContent = y === 1 ? '1 year' : y + ' years';
+  document.getElementById('lbl-sims').textContent  = s.toLocaleString();
+}}
+
+// ── Asset strip ──────────────────────────────────────────────────────────────
+function renderAsset(a) {{
+  const annRet = ((1 + a.mu) ** 252 - 1) * 100;
+  const annVol = a.sigma * Math.sqrt(252) * 100;
+  const strip  = document.getElementById('asset-strip');
+  strip.innerHTML = `
+    <div class="as-ticker">${{a.ticker}}</div>
+    <div class="as-name">${{a.name}}</div>
+    <div class="as-stat">
+      <div class="as-label">Price</div>
+      <div class="as-val">$${{a.last_price.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}})}}</div>
+    </div>
+    <div class="as-stat">
+      <div class="as-label">Ann. return</div>
+      <div class="as-val">${{annRet >= 0 ? '+' : ''}}${{annRet.toFixed(1)}}%</div>
+    </div>
+    <div class="as-stat">
+      <div class="as-label">Ann. volatility</div>
+      <div class="as-val">${{annVol.toFixed(1)}}%</div>
+    </div>
+    <div class="as-stat">
+      <div class="as-label">Daily drift</div>
+      <div class="as-val">${{(a.mu*100).toFixed(3)}}%</div>
+    </div>`;
+  strip.classList.add('show');
+  document.getElementById('rule1').style.display = 'block';
+  document.getElementById('controls').style.display = 'grid';
+}}
+
+// ── Results ──────────────────────────────────────────────────────────────────
+function renderResults(r, a) {{
+  document.getElementById('results').style.display = 'block';
+  const last  = a.last_price;
+  const years = +document.getElementById('sl-years').value;
+  document.getElementById('horizon-label').textContent =
+    'Projected price — ' + (years === 1 ? '1 year' : years + ' years') + ' horizon';
+
+  // Metrics row
+  const pts = [
+    ['5th percentile',  r.p5,  'Bear case'],
+    ['25th percentile', r.p25, 'Low case'],
+    ['Median',          r.p50, 'Base case'],
+    ['75th percentile', r.p75, 'High case'],
+    ['95th percentile', r.p95, 'Bull case'],
+  ];
+  document.getElementById('metrics-row').innerHTML = pts.map(([lbl, v, sub]) => {{
+    const pct = ((v - last) / last * 100);
+    const cls = pct >= 0 ? 'pos' : 'neg';
+    const sgn = pct >= 0 ? '+' : '';
+    return `<div class="metric">
+      <div class="m-label">${{lbl}}</div>
+      <div class="m-val">$${{Math.round(v).toLocaleString()}}</div>
+      <div class="m-delta ${{cls}}">${{sgn}}${{pct.toFixed(1)}}% &mdash; ${{sub}}</div>
+    </div>`;
+  }}).join('');
+
+  // Chart
+  drawChart(r, a);
+
+  // Caption
+  const volSel = document.getElementById('sel-vol');
+  const volLbl = volSel ? volSel.options[volSel.selectedIndex].text : '';
+  const nsims  = document.getElementById('sl-sims').value;
+  document.getElementById('chart-caption').textContent =
+    (+nsims).toLocaleString() + ' simulations · ' + volLbl + ' · Geometric Brownian Motion';
+
+  // Prob row
+  const probs = [
+    ['Probability of any gain',     r.prob_gain,   false],
+    ['Probability of +20% or more', r.prob_20up,   false],
+    ['Probability of losing 20%+',  r.prob_loss20, true],
+  ];
+  document.getElementById('prob-row').innerHTML = probs.map(([lbl, v, isRed]) => `
+    <div class="prob-card">
+      <div class="prob-val ${{isRed ? 'red' : 'green'}}">${{v.toFixed(1)}}%</div>
+      <div class="prob-label">${{lbl}}</div>
+    </div>`).join('');
+
+  // Methodology table
+  const a2 = ASSET;
+  const annRet = ((1 + a2.mu) ** 252 - 1) * 100;
+  const annVol = a2.sigma * Math.sqrt(252) * 100;
+  document.getElementById('meth-table').innerHTML = [
+    ['Ticker', a2.ticker],
+    ['Daily drift (μ)', (a2.mu * 100).toFixed(4) + '%'],
+    ['Daily volatility (σ)', (a2.sigma * 100).toFixed(4) + '%'],
+    ['Annualised return', annRet.toFixed(2) + '%'],
+    ['Annualised volatility', annVol.toFixed(2) + '%'],
+    ['Volatility multiplier', document.getElementById('sel-vol')?.value + '×'],
+    ['Simulations', (+document.getElementById('sl-sims').value).toLocaleString()],
+    ['Trading days modelled', (years * 252).toString()],
+  ].map(([k,v]) => `<tr><td>${{k}}</td><td>${{v}}</td></tr>`).join('');
+}}
+
+// ── Chart ─────────────────────────────────────────────────────────────────────
+function drawChart(r, a) {{
+  if (chart) {{ chart.destroy(); chart = null; }}
+  const labels   = r.labels;
+  const pcts     = r.pcts;
+  const paths    = r.paths;
+  const datasets = [];
+
+  // IQR fill
+  datasets.push({{
+    data: [...pcts['75'], ...[...pcts['25']].reverse()],
+    labels: [...labels, ...[...labels].reverse()],
+    fill: true,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderColor: 'transparent',
+    pointRadius: 0,
+    showlegend: false,
+  }});
+
+  // Paths
+  for (const p of paths) {{
+    datasets.push({{
+      data: p,
+      borderColor: 'rgba(255,255,255,0.04)',
+      borderWidth: 1,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+    }});
+  }}
+
+  // Percentile lines
+  const lines = [
+    {{ pct:'5',  color:'#c0392b', dash:[5,4] }},
+    {{ pct:'50', color:'#dde1ec', dash:[]    }},
+    {{ pct:'95', color:'#4caf7d', dash:[5,4] }},
+  ];
+  for (const l of lines) {{
+    datasets.push({{
+      label: l.pct === '50' ? 'Median' : l.pct + 'th pct',
+      data: pcts[l.pct],
+      borderColor: l.color,
+      borderWidth: l.pct === '50' ? 2.5 : 1.8,
+      borderDash: l.dash,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+    }});
+  }}
+
+  chart = new Chart(document.getElementById('chart'), {{
+    type: 'line',
+    data: {{ labels, datasets }},
+    options: {{
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {{ duration: 500 }},
+      plugins: {{
+        legend: {{ display: false }},
+        tooltip: {{
+          mode: 'index', intersect: false,
+          filter: i => i.datasetIndex >= paths.length + 1,
+          backgroundColor: '#0d0f14',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#3d4258',
+          bodyColor: '#dde1ec',
+          titleFont: {{ family: 'DM Mono', size: 10 }},
+          bodyFont:  {{ family: 'DM Mono', size: 12 }},
+          padding: 12,
+          callbacks: {{
+            label: ctx => ' ' + ctx.dataset.label + ':  $' + Math.round(ctx.raw).toLocaleString(),
+          }},
+        }},
+      }},
+      scales: {{
+        x: {{
+          grid: {{ color: 'rgba(255,255,255,0.04)' }},
+          ticks: {{ maxTicksLimit: 10, color: '#3d4258', font: {{ family:'DM Mono', size:10 }} }},
+        }},
+        y: {{
+          grid: {{ color: 'rgba(255,255,255,0.04)' }},
+          ticks: {{
+            color: '#3d4258',
+            font: {{ family:'DM Mono', size:10 }},
+            callback: v => '$' + Math.round(v).toLocaleString(),
+          }},
+        }},
+      }},
+    }},
+  }});
+}}
+
+function toggleMeth() {{
+  const b = document.getElementById('meth-body');
+  const btn = document.querySelector('.meth-toggle');
+  b.classList.toggle('open');
+  btn.textContent = b.classList.contains('open')
+    ? '- Methodology & parameters'
+    : '+ Methodology & parameters';
+}}
+
+function showErr(msg) {{
+  const el = document.getElementById('err');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}}
+
+function setLoading(v) {{
+  document.getElementById('loading').classList.toggle('show', v);
+}}
+
+document.getElementById('ticker').addEventListener('keydown', e => {{
+  if (e.key === 'Enter') loadTicker();
+}});
+document.getElementById('ticker').addEventListener('input', e => {{
+  const p = e.target.selectionStart;
+  e.target.value = e.target.value.toUpperCase();
+  e.target.setSelectionRange(p, p);
+}});
+
+init();
+</script>
+</body>
+</html>"""
+
+st.components.v1.html(HTML, height=2400, scrolling=False)
