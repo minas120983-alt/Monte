@@ -1,0 +1,130 @@
+"""
+Monte Carlo Stock Price Simulator
+Run with: python app.py
+Then open: http://localhost:5000
+"""
+
+from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
+import yfinance as yf
+import numpy as np
+import os
+
+app = Flask(__name__, static_folder="static")
+CORS(app)
+
+
+@app.route("/")
+def index():
+    return send_from_directory("static", "index.html")
+
+
+@app.route("/api/fetch", methods=["GET"])
+def fetch_ticker():
+    ticker = request.args.get("ticker", "SPY").upper().strip()
+    try:
+        data = yf.download(ticker, period="5y", interval="1d", auto_adjust=True, progress=False)
+        if data.empty:
+            return jsonify({"error": f"No data found for '{ticker}'. Check the ticker symbol."}), 404
+
+        closes = data["Close"].dropna().squeeze()
+        returns = closes.pct_change().dropna()
+
+        mu = float(returns.mean().iloc[0] if hasattr(returns.mean(), "iloc") else returns.mean())
+        sigma = float(returns.std().iloc[0] if hasattr(returns.std(), "iloc") else returns.std())
+        last_price = float(closes.iloc[-1].iloc[0] if hasattr(closes.iloc[-1], "iloc") else closes.iloc[-1])
+
+        # Get company name
+        info = yf.Ticker(ticker).info
+        name = info.get("longName") or info.get("shortName") or ticker
+
+        # Historical closing prices for sparkline (last 90 days, ~20 points)
+        hist = closes.iloc[-90::5].tolist()
+
+        return jsonify({
+            "ticker": ticker,
+            "name": name,
+            "last_price": round(last_price, 2),
+            "mu": mu,
+            "sigma": sigma,
+            "history": [round(p, 2) for p in hist],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/simulate", methods=["POST"])
+def simulate():
+    body = request.json
+    last_price = float(body["last_price"])
+    mu = float(body["mu"])
+    sigma = float(body["sigma"])
+    years = int(body.get("years", 1))
+    n_sims = int(body.get("n_sims", 500))
+    vol_mult = float(body.get("vol_mult", 1.0))
+
+    steps = int(years * 252)
+    sigma_adj = sigma * vol_mult
+    drift = (mu - 0.5 * sigma_adj ** 2)
+    vol = sigma_adj
+
+    rng = np.random.default_rng()
+    Z = rng.standard_normal((n_sims, steps))
+    log_returns = drift + vol * Z
+    paths = last_price * np.exp(np.cumsum(log_returns, axis=1))
+    paths = np.hstack([np.full((n_sims, 1), last_price), paths])
+
+    # Sample ~80 time points for the chart
+    idx = np.linspace(0, steps, min(80, steps + 1), dtype=int)
+    sampled = paths[:, idx]
+
+    p5 = np.percentile(sampled, 5, axis=0).tolist()
+    p25 = np.percentile(sampled, 25, axis=0).tolist()
+    p50 = np.percentile(sampled, 50, axis=0).tolist()
+    p75 = np.percentile(sampled, 75, axis=0).tolist()
+    p95 = np.percentile(sampled, 95, axis=0).tolist()
+
+    # Sample up to 200 individual paths for display
+    display_paths = sampled[:200].tolist()
+
+    final = paths[:, -1]
+    prob_gain = float(np.mean(final > last_price) * 100)
+    prob_20up = float(np.mean(final > last_price * 1.2) * 100)
+    prob_loss = float(np.mean(final < last_price * 0.8) * 100)
+
+    # Build time labels
+    labels = []
+    for i in idx:
+        mo = round(i / 252 * 12)
+        if mo == 0:
+            labels.append("Now")
+        elif mo < 12:
+            labels.append(f"{mo}mo")
+        else:
+            yr = mo // 12
+            rem = mo % 12
+            labels.append(f"{yr}yr" + (f" {rem}mo" if rem else ""))
+
+    return jsonify({
+        "labels": labels,
+        "p5": [round(v, 2) for v in p5],
+        "p25": [round(v, 2) for v in p25],
+        "p50": [round(v, 2) for v in p50],
+        "p75": [round(v, 2) for v in p75],
+        "p95": [round(v, 2) for v in p95],
+        "paths": [[round(v, 2) for v in path] for path in display_paths],
+        "final_p5": round(float(np.percentile(final, 5)), 2),
+        "final_p25": round(float(np.percentile(final, 25)), 2),
+        "final_p50": round(float(np.percentile(final, 50)), 2),
+        "final_p75": round(float(np.percentile(final, 75)), 2),
+        "final_p95": round(float(np.percentile(final, 95)), 2),
+        "prob_gain": round(prob_gain, 1),
+        "prob_20up": round(prob_20up, 1),
+        "prob_loss": round(prob_loss, 1),
+    })
+
+
+if __name__ == "__main__":
+    os.makedirs("static", exist_ok=True)
+    print("\n🚀  Monte Carlo Simulator running at http://localhost:5000\n")
+    app.run(debug=True, port=5000)
